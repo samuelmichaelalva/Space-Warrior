@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>NEON_STRIKE_V.1 - Gameplay</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&amp;family=Space+Grotesk:wght@700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "inverse-surface": "#e2e2e2",
+                        "secondary": "#ffabf3",
+                        "surface-bright": "#393939",
+                        "on-surface-variant": "#b9cac9",
+                        "on-secondary": "#5b005b",
+                        "on-surface": "#e2e2e2",
+                        "on-error-container": "#ffdad6",
+                        "inverse-on-surface": "#303030",
+                        "secondary-fixed": "#ffd7f5",
+                        "on-primary-fixed": "#002020",
+                        "surface-container-low": "#1b1b1b",
+                        "tertiary-fixed": "#ffdcc3",
+                        "primary-container": "#00fbfb",
+                        "tertiary-container": "#ffdcc3",
+                        "secondary-fixed-dim": "#ffabf3",
+                        "on-primary-container": "#007070",
+                        "on-tertiary-fixed-variant": "#6e3900",
+                        "surface-container-highest": "#353535",
+                        "on-tertiary": "#4d2600",
+                        "on-primary": "#003737",
+                        "on-tertiary-fixed": "#2f1500",
+                        "secondary-container": "#fe00fe",
+                        "primary-fixed": "#00fbfb",
+                        "outline": "#839493",
+                        "on-tertiary-container": "#995200",
+                        "tertiary-fixed-dim": "#ffb77d",
+                        "primary": "#ffffff",
+                        "inverse-primary": "#006a6a",
+                        "surface-tint": "#00dddd",
+                        "error-container": "#93000a",
+                        "primary-fixed-dim": "#00dddd",
+                        "background": "#131313",
+                        "on-secondary-container": "#500050",
+                        "surface-dim": "#131313",
+                        "on-background": "#e2e2e2",
+                        "on-primary-fixed-variant": "#004f4f",
+                        "outline-variant": "#3a4a49",
+                        "surface-container-lowest": "#0e0e0e",
+                        "tertiary": "#ffffff",
+                        "surface-variant": "#353535",
+                        "surface": "#131313",
+                        "error": "#ffb4ab",
+                        "on-error": "#690005",
+                        "surface-container": "#1f1f1f",
+                        "on-secondary-fixed": "#380038",
+                        "surface-container-high": "#2a2a2a",
+                        "on-secondary-fixed-variant": "#810081"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "container-max": "480px",
+                        "unit": "4px",
+                        "margin": "24px",
+                        "gutter": "16px"
+                    },
+                    "fontFamily": {
+                        "score-display": ["Space Mono"],
+                        "headline-lg": ["Space Grotesk"],
+                        "headline-lg-mobile": ["Space Grotesk"],
+                        "label-caps": ["Space Mono"],
+                        "body-sm": ["Space Mono"],
+                        "body-md": ["Space Mono"],
+                        "headline-xl": ["Space Grotesk"]
+                    },
+                    "fontSize": {
+                        "score-display": ["24px", { "lineHeight": "32px", "letterSpacing": "0.05em", "fontWeight": "700" }],
+                        "headline-lg": ["32px", { "lineHeight": "36px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "headline-lg-mobile": ["28px", { "lineHeight": "32px", "fontWeight": "700" }],
+                        "label-caps": ["12px", { "lineHeight": "16px", "letterSpacing": "0.1em", "fontWeight": "700" }],
+                        "body-sm": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "headline-xl": ["48px", { "lineHeight": "52px", "letterSpacing": "-0.04em", "fontWeight": "700" }]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        @keyframes scanline {
+            0% { transform: translateY(-100%); }
+            100% { transform: translateY(100%); }
+        }
+        @keyframes flicker {
+            0% { opacity: 0.98; }
+            5% { opacity: 0.95; }
+            10% { opacity: 0.99; }
+            15% { opacity: 0.93; }
+            20% { opacity: 0.98; }
+            100% { opacity: 1; }
+        }
+        @keyframes nebula-pulse {
+            0%, 100% { transform: scale(1); opacity: 0.2; }
+            50% { transform: scale(1.1); opacity: 0.3; }
+        }
+        @keyframes bullet-travel {
+            from { transform: translateY(0); }
+            to { transform: translateY(-100vh); }
+        }
+        @keyframes explode {
+            0% { transform: scale(0.5); opacity: 1; filter: brightness(2); }
+            100% { transform: scale(2.5); opacity: 0; filter: brightness(1); }
+        }
+        .scanline-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 4px, 3px 100%;
+            pointer-events: none;
+            z-index: 100;
+        }
+        .crt-flicker { animation: flicker 0.15s infinite; }
+        .nebula {
+            background: radial-gradient(circle at center, rgba(131, 0, 255, 0.15) 0%, transparent 70%);
+            animation: nebula-pulse 10s ease-in-out infinite;
+        }
+        .star { position: absolute; background: white; border-radius: 50%; }
+        .grid-floor {
+            background-image: linear-gradient(to right, rgba(46, 91, 255, 0.1) 1px, transparent 1px),
+                              linear-gradient(to bottom, rgba(46, 91, 255, 0.1) 1px, transparent 1px);
+            background-size: 40px 40px;
+            transform: perspective(500px) rotateX(60deg);
+        }
+        .bullet {
+            width: 4px;
+            height: 16px;
+            background: #00fbfb;
+            box-shadow: 0 0 10px #00fbfb, 0 0 20px #00fbfb;
+            animation: bullet-travel 0.8s linear infinite;
+        }
+        .pixel-ship {
+            clip-path: polygon(50% 0%, 0% 100%, 50% 80%, 100% 100%);
+            background: linear-gradient(to bottom, #ffffff, #00fbfb);
+            filter: drop-shadow(0 0 8px #00fbfb);
+        }
+        .explosion-fragment {
+            animation: explode 0.4s ease-out forwards;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-black text-on-background font-body-md overflow-hidden h-screen w-screen selection:bg-secondary selection:text-black">
+<!-- CRT Visual Effects Layer -->
+<div class="scanline-overlay"></div>
+<!-- Background Space & Nebula -->
+<div class="fixed inset-0 z-0 bg-black">
+<div class="absolute inset-0 nebula"></div>
+<div class="absolute inset-0 nebula opacity-50" style="background: radial-gradient(circle at 20% 80%, rgba(0, 251, 251, 0.1) 0%, transparent 50%);"></div>
+<!-- Stars Generated via Script -->
+<div class="absolute inset-0 overflow-hidden" id="starfield"></div>
+<div class="absolute bottom-0 left-0 w-full h-1/2 grid-floor opacity-30 origin-bottom"></div>
+</div>
+<!-- Top App Bar (As Predicted) -->
+<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-margin py-unit bg-transparent border-b-2 border-primary-container h-16">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary-fixed" style="font-variation-settings: 'FILL' 1;">videogame_asset</span>
+<h1 class="font-headline-xl text-headline-xl text-primary-fixed drop-shadow-[0_0_8px_rgba(0,255,255,0.8)] leading-none">NEON_STRIKE_V.1</h1>
+</div>
+<button class="material-symbols-outlined text-primary-fixed hover:bg-primary-container/20 p-2 transition-transform active:scale-95">settings</button>
+</header>
+<!-- Main Combat Canvas -->
+<main class="relative z-10 w-full h-full pt-16 pb-24 flex flex-col items-center">
+<!-- HUD / Stats Overlay -->
+<div class="w-full px-margin py-gutter flex justify-between items-start">
+<div class="flex flex-col gap-1">
+<span class="font-label-caps text-label-caps text-secondary opacity-70">CURRENT SCORE</span>
+<div class="relative">
+<span class="absolute top-0 left-0 font-score-display text-score-display text-primary opacity-20 select-none">888888</span>
+<span class="relative font-score-display text-score-display text-primary drop-shadow-[0_0_8px_#ffffff]">004820</span>
+</div>
+</div>
+<div class="flex flex-col items-end gap-1">
+<span class="font-label-caps text-label-caps text-secondary opacity-70">HIGH SCORE</span>
+<span class="font-score-display text-score-display text-secondary drop-shadow-[0_0_8px_#ffabf3]">012400</span>
+</div>
+</div>
+<!-- Enemy Waves -->
+<div class="w-full flex-grow relative max-w-container-max px-margin pt-10">
+<!-- Wave Grid -->
+<div class="grid grid-cols-5 gap-6 justify-items-center">
+<!-- Enemy Rows -->
+<!-- Row 1 (Purple UFOs) -->
+<div class="relative w-10 h-10 border-2 border-secondary-container bg-black shadow-[0_0_10px_#fe00fe] flex items-center justify-center">
+<span class="material-symbols-outlined text-secondary-container text-2xl" style="font-variation-settings: 'FILL' 1;">rocket</span>
+</div>
+<div class="relative w-10 h-10 border-2 border-secondary-container bg-black shadow-[0_0_10px_#fe00fe] flex items-center justify-center">
+<span class="material-symbols-outlined text-secondary-container text-2xl" style="font-variation-settings: 'FILL' 1;">rocket</span>
+</div>
+<!-- Mid-Explosion Enemy -->
+<div class="relative w-10 h-10 flex items-center justify-center">
+<div class="absolute inset-0 bg-error-container rounded-full blur-xl explosion-fragment"></div>
+<span class="material-symbols-outlined text-error text-3xl opacity-50">explosion</span>
+</div>
+<div class="relative w-10 h-10 border-2 border-secondary-container bg-black shadow-[0_0_10px_#fe00fe] flex items-center justify-center">
+<span class="material-symbols-outlined text-secondary-container text-2xl" style="font-variation-settings: 'FILL' 1;">rocket</span>
+</div>
+<div class="relative w-10 h-10 border-2 border-secondary-container bg-black shadow-[0_0_10px_#fe00fe] flex items-center justify-center">
+<span class="material-symbols-outlined text-secondary-container text-2xl" style="font-variation-settings: 'FILL' 1;">rocket</span>
+</div>
+<!-- Row 2 (Cyan Drones) -->
+<div class="relative w-10 h-10 border-2 border-primary-container bg-black shadow-[0_0_10px_#00fbfb] flex items-center justify-center">
+<span class="material-symbols-outlined text-primary-container text-2xl" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
+</div>
+<div class="relative w-10 h-10 border-2 border-primary-container bg-black shadow-[0_0_10px_#00fbfb] flex items-center justify-center">
+<span class="material-symbols-outlined text-primary-container text-2xl" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
+</div>
+<div class="relative w-10 h-10 border-2 border-primary-container bg-black shadow-[0_0_10px_#00fbfb] flex items-center justify-center">
+<span class="material-symbols-outlined text-primary-container text-2xl" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
+</div>
+<div class="relative w-10 h-10 border-2 border-primary-container bg-black shadow-[0_0_10px_#00fbfb] flex items-center justify-center">
+<span class="material-symbols-outlined text-primary-container text-2xl" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
+</div>
+<div class="relative w-10 h-10 border-2 border-primary-container bg-black shadow-[0_0_10px_#00fbfb] flex items-center justify-center">
+<span class="material-symbols-outlined text-primary-container text-2xl" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
+</div>
+</div>
+<!-- Firing Bullets -->
+<div class="absolute bottom-10 left-1/2 -translate-x-1/2 flex gap-12">
+<div class="bullet" style="animation-delay: 0.1s"></div>
+<div class="bullet" style="animation-delay: 0.3s"></div>
+</div>
+</div>
+<!-- Player Fighter Area -->
+<div class="absolute bottom-24 left-0 w-full flex flex-col items-center">
+<!-- The Player Ship -->
+<div class="relative group">
+<div class="pixel-ship w-16 h-16"></div>
+<!-- Neon Thrusters -->
+<div class="absolute -bottom-4 left-1/2 -translate-x-1/2 flex gap-4">
+<div class="w-3 h-8 bg-primary-container blur-sm animate-pulse rounded-full opacity-70"></div>
+<div class="w-3 h-8 bg-primary-container blur-sm animate-pulse rounded-full opacity-70" style="animation-delay: 0.2s"></div>
+</div>
+</div>
+</div>
+</main>
+<!-- Bottom Nav Bar / Health Bar Area (As Predicted) -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-margin pb-4 bg-transparent border-t-2 border-secondary-container drop-shadow-[0_0_12px_rgba(255,0,255,0.5)] h-20">
+<!-- Health Segments Left -->
+<div class="flex-1 flex gap-2">
+<div class="flex flex-col gap-1">
+<span class="font-label-caps text-[10px] text-secondary">ARMOR</span>
+<div class="flex gap-1">
+<div class="w-6 h-3 bg-secondary border border-secondary shadow-[0_0_5px_#ffabf3]"></div>
+<div class="w-6 h-3 bg-secondary border border-secondary shadow-[0_0_5px_#ffabf3]"></div>
+<div class="w-6 h-3 bg-secondary/20 border border-secondary/40"></div>
+</div>
+</div>
+</div>
+<!-- Predicted Nav Cluster (Icons Only) -->
+<div class="flex gap-4 items-center">
+<div class="flex flex-col items-center justify-center bg-secondary-container text-on-secondary-container rounded-none p-2 border-2 border-secondary active:brightness-125 transition-all">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">bolt</span>
+</div>
+<div class="flex flex-col items-center justify-center text-secondary p-2 opacity-50 hover:bg-secondary/10 transition-all">
+<span class="material-symbols-outlined">shield</span>
+</div>
+<div class="flex flex-col items-center justify-center text-secondary p-2 opacity-50 hover:bg-secondary/10 transition-all">
+<span class="material-symbols-outlined">radar</span>
+</div>
+</div>
+<!-- Lives / Ship Icons Right -->
+<div class="flex-1 flex flex-col items-end gap-1">
+<span class="font-label-caps text-[10px] text-secondary">LIVES</span>
+<div class="flex gap-2">
+<span class="material-symbols-outlined text-secondary text-lg" style="font-variation-settings: 'FILL' 1;">rocket_launch</span>
+<span class="material-symbols-outlined text-secondary text-lg" style="font-variation-settings: 'FILL' 1;">rocket_launch</span>
+<span class="material-symbols-outlined text-secondary text-lg" style="font-variation-settings: 'FILL' 1;">rocket_launch</span>
+</div>
+</div>
+</nav>
+<!-- Floating HUD Elements -->
+<div class="fixed top-20 right-4 flex flex-col gap-2 pointer-events-none">
+<div class="bg-secondary text-on-secondary-fixed font-label-caps px-2 py-1 flex items-center gap-1 shadow-[4px_4px_0px_#810081]">
+<span class="material-symbols-outlined text-sm">trending_up</span>
+            NEW RECORD
+        </div>
+</div>
+<!-- Scripts for Atmosphere -->
+<script>
+        // Generate Starfield
+        const starfield = document.getElementById('starfield');
+        for (let i = 0; i < 150; i++) {
+            const star = document.createElement('div');
+            star.className = 'star';
+            const size = Math.random() * 2 + 1;
+            star.style.width = `${size}px`;
+            star.style.height = `${size}px`;
+            star.style.left = `${Math.random() * 100}%`;
+            star.style.top = `${Math.random() * 100}%`;
+            star.style.opacity = Math.random();
+            if (Math.random() > 0.8) {
+                star.classList.add('animate-pulse');
+            }
+            starfield.appendChild(star);
+        }
+
+        // Simple ship movement interaction
+        document.addEventListener('mousemove', (e) => {
+            const ship = document.querySelector('.pixel-ship');
+            if(ship) {
+                const moveX = (e.clientX - window.innerWidth/2) / 20;
+                ship.parentElement.style.transform = `translateX(${moveX}px) rotateY(${moveX/2}deg)`;
+            }
+        });
+    </script>
+</body></html>
