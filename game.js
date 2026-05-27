@@ -4,12 +4,12 @@ const ctx = canvas.getContext("2d");
 const scoreEl = document.getElementById("score");
 const sessionBestEl = document.getElementById("sessionBest");
 const topScoreEl = document.getElementById("topScore");
-const healthEl = document.getElementById("health");
 const startOverlay = document.getElementById("startOverlay");
 const gameOverOverlay = document.getElementById("gameOverOverlay");
 const finalScoreEl = document.getElementById("finalScore");
 const startButton = document.getElementById("startButton");
 const restartButton = document.getElementById("restartButton");
+const soundButton = document.getElementById("soundButton");
 
 const W = canvas.width;
 const H = canvas.height;
@@ -24,6 +24,7 @@ let player;
 let bullets;
 let enemyBullets;
 let enemies;
+let pickups;
 let particles;
 let stars;
 let score;
@@ -31,6 +32,169 @@ let normalKills;
 let spawnTimer;
 let shootTimer;
 let bossActive;
+let bossIntroTimer;
+let audio;
+
+function createAudioEngine() {
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  if (!AudioCtx) return null;
+
+  const audioContext = new AudioCtx();
+  const master = audioContext.createGain();
+  const musicGain = audioContext.createGain();
+  const sfxGain = audioContext.createGain();
+  const bassGain = audioContext.createGain();
+  const leadGain = audioContext.createGain();
+  const delay = audioContext.createDelay();
+  const delayFeedback = audioContext.createGain();
+
+  master.gain.value = 0.35;
+  musicGain.gain.value = 0.22;
+  sfxGain.gain.value = 0.32;
+  bassGain.gain.value = 0.42;
+  leadGain.gain.value = 0.2;
+  delay.delayTime.value = 0.18;
+  delayFeedback.gain.value = 0.22;
+
+  musicGain.connect(master);
+  sfxGain.connect(master);
+  bassGain.connect(musicGain);
+  leadGain.connect(delay);
+  leadGain.connect(musicGain);
+  delay.connect(delayFeedback);
+  delayFeedback.connect(delay);
+  delay.connect(musicGain);
+  master.connect(audioContext.destination);
+
+  let muted = false;
+  let musicTimer = null;
+  let step = 0;
+  const bassNotes = [55, 55, 82.41, 55, 65.41, 65.41, 98, 65.41];
+  const leadNotes = [220, 0, 277.18, 0, 246.94, 329.63, 277.18, 0, 196, 0, 246.94, 0, 220, 293.66, 246.94, 0];
+
+  function envGain(target, start, peak, end, duration) {
+    target.gain.cancelScheduledValues(start);
+    target.gain.setValueAtTime(0.0001, start);
+    target.gain.exponentialRampToValueAtTime(peak, start + 0.015);
+    target.gain.exponentialRampToValueAtTime(0.0001, end || start + duration);
+  }
+
+  function tone(freq, duration, options = {}) {
+    if (muted) return;
+    const now = audioContext.currentTime;
+    const osc = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+    const out = options.out || sfxGain;
+    osc.type = options.type || "square";
+    osc.frequency.setValueAtTime(freq, now);
+    if (options.slideTo) osc.frequency.exponentialRampToValueAtTime(options.slideTo, now + duration);
+    envGain(gain, now, options.gain || 0.18, now + duration, duration);
+    osc.connect(gain);
+    gain.connect(out);
+    osc.start(now);
+    osc.stop(now + duration + 0.03);
+  }
+
+  function noise(duration, options = {}) {
+    if (muted) return;
+    const now = audioContext.currentTime;
+    const bufferSize = audioContext.sampleRate * duration;
+    const buffer = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i += 1) data[i] = Math.random() * 2 - 1;
+    const source = audioContext.createBufferSource();
+    const filter = audioContext.createBiquadFilter();
+    const gain = audioContext.createGain();
+    filter.type = options.filter || "bandpass";
+    filter.frequency.value = options.freq || 900;
+    filter.Q.value = options.q || 1.2;
+    envGain(gain, now, options.gain || 0.2, now + duration, duration);
+    source.buffer = buffer;
+    source.connect(filter);
+    filter.connect(gain);
+    gain.connect(sfxGain);
+    source.start(now);
+  }
+
+  function musicStep() {
+    if (muted || state !== "playing") return;
+    const bass = bassNotes[step % bassNotes.length];
+    tone(bass, 0.13, { type: "sawtooth", gain: 0.08, out: bassGain });
+    if (step % 2 === 0) tone(bass * 2, 0.04, { type: "triangle", gain: 0.035, out: bassGain });
+    const lead = leadNotes[step % leadNotes.length];
+    if (lead) tone(lead, 0.11, { type: "square", gain: 0.055, out: leadGain });
+    if (step % 4 === 2) noise(0.035, { gain: 0.025, freq: 3600, filter: "highpass" });
+    step += 1;
+  }
+
+  function startMusic() {
+    if (musicTimer) return;
+    musicTimer = window.setInterval(musicStep, 155);
+  }
+
+  function stopMusic() {
+    if (!musicTimer) return;
+    window.clearInterval(musicTimer);
+    musicTimer = null;
+  }
+
+  return {
+    get muted() {
+      return muted;
+    },
+    async resume() {
+      if (audioContext.state !== "running") await audioContext.resume();
+    },
+    startMusic,
+    stopMusic,
+    toggleMute() {
+      muted = !muted;
+      master.gain.value = muted ? 0 : 0.35;
+      return muted;
+    },
+    laser() {
+      tone(880, 0.07, { type: "square", gain: 0.09, slideTo: 320 });
+    },
+    enemyLaser() {
+      tone(230, 0.09, { type: "sawtooth", gain: 0.08, slideTo: 130 });
+    },
+    hit() {
+      tone(130, 0.08, { type: "triangle", gain: 0.1, slideTo: 80 });
+    },
+    explode(isBoss = false) {
+      noise(isBoss ? 0.48 : 0.22, { gain: isBoss ? 0.34 : 0.22, freq: isBoss ? 180 : 420, filter: "lowpass" });
+      tone(isBoss ? 92 : 180, isBoss ? 0.42 : 0.16, { type: "sawtooth", gain: isBoss ? 0.16 : 0.1, slideTo: 45 });
+    },
+    bossAlert() {
+      tone(196, 0.22, { type: "square", gain: 0.12, slideTo: 146.83 });
+      window.setTimeout(() => tone(196, 0.22, { type: "square", gain: 0.12, slideTo: 146.83 }), 300);
+      window.setTimeout(() => tone(293.66, 0.34, { type: "square", gain: 0.14, slideTo: 220 }), 620);
+    },
+    pickup() {
+      tone(523.25, 0.08, { type: "triangle", gain: 0.11 });
+      window.setTimeout(() => tone(659.25, 0.08, { type: "triangle", gain: 0.11 }), 80);
+      window.setTimeout(() => tone(783.99, 0.13, { type: "triangle", gain: 0.12 }), 160);
+    },
+    gameOver() {
+      tone(220, 0.18, { type: "sawtooth", gain: 0.13, slideTo: 155.56 });
+      window.setTimeout(() => tone(146.83, 0.3, { type: "sawtooth", gain: 0.14, slideTo: 73.42 }), 180);
+    }
+  };
+}
+
+async function enableAudio() {
+  if (!audio) audio = createAudioEngine();
+  if (!audio) return;
+  await audio.resume();
+  audio.startMusic();
+  updateSoundButton();
+}
+
+function updateSoundButton() {
+  if (!soundButton || !audio) return;
+  soundButton.textContent = audio.muted ? "Sound Off" : "Sound On";
+  soundButton.setAttribute("aria-pressed", String(!audio.muted));
+}
 
 function resetGame() {
   player = {
@@ -46,6 +210,7 @@ function resetGame() {
   bullets = [];
   enemyBullets = [];
   enemies = [];
+  pickups = [];
   particles = [];
   stars = makeStars();
   score = 0;
@@ -53,6 +218,7 @@ function resetGame() {
   spawnTimer = 600;
   shootTimer = 0;
   bossActive = false;
+  bossIntroTimer = 0;
   updateHud();
 }
 
@@ -67,14 +233,18 @@ function makeStars() {
 }
 
 function startGame() {
+  enableAudio();
   resetGame();
   state = "playing";
+  audio?.startMusic();
   startOverlay.classList.remove("is-visible");
   gameOverOverlay.classList.remove("is-visible");
 }
 
 function gameOver() {
   state = "over";
+  audio?.gameOver();
+  audio?.stopMusic();
   finalScoreEl.textContent = score;
   sessionBest = Math.max(sessionBest, score);
   if (score > topScore) {
@@ -89,20 +259,21 @@ function updateHud() {
   scoreEl.textContent = score;
   sessionBestEl.textContent = sessionBest;
   topScoreEl.textContent = topScore;
-  healthEl.textContent = Math.max(0, Math.ceil(player?.hp || 0));
 }
 
 function spawnEnemy(forceBoss = false) {
   if (forceBoss || (!bossActive && normalKills > 0 && normalKills % 15 === 0)) {
     bossActive = true;
+    bossIntroTimer = 1000;
+    audio?.bossAlert();
     enemies.push({
       type: "boss",
       x: W / 2,
       y: -70,
       w: 96,
       h: 62,
-      hp: 12,
-      maxHp: 12,
+      hp: 24,
+      maxHp: 24,
       speed: 58,
       fireTimer: 450,
       drift: Math.random() * Math.PI * 2
@@ -127,18 +298,26 @@ function spawnEnemy(forceBoss = false) {
 function shootPlayer() {
   bullets.push({ x: player.x - 13, y: player.y - 40, r: 4, damage: 1, vy: -520 });
   bullets.push({ x: player.x + 13, y: player.y - 40, r: 4, damage: 1, vy: -520 });
+  audio?.laser();
 }
 
 function shootEnemy(enemy) {
   const damage = enemy.type === "boss" ? 10 : 5;
   const speed = enemy.type === "boss" ? 330 : 245;
   enemyBullets.push({ x: enemy.x, y: enemy.y + enemy.h * 0.35, r: 5, damage, vy: speed });
+  audio?.enemyLaser();
 }
 
 function update(dt) {
   if (state !== "playing") return;
 
   updateStars(dt);
+
+  if (bossIntroTimer > 0) {
+    bossIntroTimer = Math.max(0, bossIntroTimer - dt);
+    return;
+  }
+
   movePlayer(dt);
 
   shootTimer -= dt;
@@ -155,8 +334,10 @@ function update(dt) {
 
   bullets.forEach((b) => b.y += b.vy * dt / 1000);
   enemyBullets.forEach((b) => b.y += b.vy * dt / 1000);
+  pickups.forEach((pickup) => pickup.y += pickup.vy * dt / 1000);
   bullets = bullets.filter((b) => b.y > -20);
   enemyBullets = enemyBullets.filter((b) => b.y < H + 20);
+  pickups = pickups.filter((pickup) => pickup.y < H + 30 && !pickup.collected);
 
   enemies.forEach((enemy) => {
     enemy.y += enemy.speed * dt / 1000;
@@ -219,6 +400,7 @@ function handleCollisions() {
       bullet.hit = true;
       enemy.hp -= bullet.damage;
       burst(bullet.x, bullet.y, "#75f7ff", 5);
+      audio?.hit();
       if (enemy.hp <= 0) destroyEnemy(enemy);
     });
   });
@@ -241,6 +423,15 @@ function handleCollisions() {
       if (enemy.type === "boss") bossActive = false;
     }
   });
+
+  pickups.forEach((pickup) => {
+    if (rectsOverlap(pickup, player)) {
+      pickup.collected = true;
+      player.hp = Math.min(player.maxHp, player.hp + pickup.value);
+      burst(pickup.x, pickup.y, "#62ff8a", 18);
+      audio?.pickup();
+    }
+  });
 }
 
 function destroyEnemy(enemy) {
@@ -250,6 +441,15 @@ function destroyEnemy(enemy) {
   if (enemy.type === "boss") {
     bossActive = false;
     normalKills = 0;
+    pickups.push({
+      type: "hp",
+      x: enemy.x,
+      y: enemy.y,
+      w: 30,
+      h: 30,
+      value: 5,
+      vy: 105
+    });
   } else {
     normalKills += 1;
   }
@@ -257,6 +457,7 @@ function destroyEnemy(enemy) {
   topScore = Math.max(topScore, score);
   localStorage.setItem(topScoreKey, String(topScore));
   burst(enemy.x, enemy.y, "#ffcf53", enemy.type === "boss" ? 48 : 22);
+  audio?.explode(enemy.type === "boss");
 }
 
 function burst(x, y, color, count) {
@@ -278,10 +479,13 @@ function draw() {
   ctx.clearRect(0, 0, W, H);
   drawSpace();
   enemies.forEach(drawUfo);
+  pickups.forEach(drawHpTank);
   bullets.forEach((b) => drawBolt(b.x, b.y, "#83fbff", "#2d73ff", 18));
   enemyBullets.forEach((b) => drawBolt(b.x, b.y, "#ff8adc", "#ff4b2f", 13));
+  drawPlayerHp();
   drawShip(player.x, player.y);
   drawParticles();
+  if (bossIntroTimer > 0) drawBossIntro();
   drawScanlines();
 }
 
@@ -304,6 +508,57 @@ function drawShip(x, y) {
   px("#ff8a23", [[-31,19,5,14],[26,19,5,14]]);
   px("#ffffff", [[-13,25,10,20],[3,25,10,20]]);
   px("#4f8dff", [[-10,43,5,14],[7,43,5,14]]);
+  ctx.restore();
+}
+
+function drawPlayerHp() {
+  const hp = Math.max(0, player.hp);
+  const ratio = hp / player.maxHp;
+  const barW = 70;
+  const barH = 7;
+  const x = Math.floor(player.x - barW / 2);
+  const y = Math.floor(player.y - 68);
+
+  ctx.save();
+  ctx.fillStyle = "rgba(3, 10, 14, 0.7)";
+  ctx.fillRect(x - 2, y - 13, barW + 4, barH + 17);
+  ctx.fillStyle = "#d5f9ff";
+  ctx.font = "10px 'Space Mono', monospace";
+  ctx.textAlign = "center";
+  ctx.fillText(`HP ${Math.ceil(hp)}`, player.x, y - 4);
+  ctx.fillStyle = "rgba(255,255,255,0.2)";
+  ctx.fillRect(x, y, barW, barH);
+  ctx.fillStyle = ratio > 0.5 ? "#5cfbff" : ratio > 0.25 ? "#ffcf53" : "#ff4b2f";
+  ctx.fillRect(x, y, barW * ratio, barH);
+  ctx.strokeStyle = "rgba(255,255,255,0.65)";
+  ctx.strokeRect(x - 0.5, y - 0.5, barW + 1, barH + 1);
+  ctx.restore();
+}
+
+function drawHpTank(pickup) {
+  ctx.save();
+  ctx.translate(pickup.x, pickup.y);
+  px("#d5f9ff", [[-12,-12,24,24]]);
+  px("#62ff8a", [[-8,-8,16,16],[-3,-13,6,26],[-13,-3,26,6]]);
+  px("#1f6b48", [[-12,-12,24,4],[-12,8,24,4],[-12,-12,4,24],[8,-12,4,24]]);
+  ctx.fillStyle = "#d5f9ff";
+  ctx.font = "9px 'Space Mono', monospace";
+  ctx.textAlign = "center";
+  ctx.fillText("+5", 0, 24);
+  ctx.restore();
+}
+
+function drawBossIntro() {
+  ctx.save();
+  ctx.fillStyle = "rgba(5, 9, 13, 0.55)";
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = "#ff63d8";
+  ctx.font = "34px 'Press Start 2P', monospace";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.shadowColor = "#ff63d8";
+  ctx.shadowBlur = 18;
+  ctx.fillText("BOSS SHIP!", W / 2, H / 2);
   ctx.restore();
 }
 
@@ -393,7 +648,18 @@ canvas.addEventListener("pointermove", (event) => {
 
 startButton.addEventListener("click", startGame);
 restartButton.addEventListener("click", startGame);
+soundButton.addEventListener("click", async () => {
+  await enableAudio();
+  if (!audio) {
+    soundButton.textContent = "No Audio";
+    return;
+  }
+  audio.toggleMute();
+  if (!audio.muted && state === "playing") audio.startMusic();
+  updateSoundButton();
+});
 
 resetGame();
 updateHud();
+updateSoundButton();
 requestAnimationFrame(loop);
