@@ -42,6 +42,7 @@ body {
 
 .hud {
   display: grid;
+  grid-template-columns: repeat(3, 1fr);
   grid-template-columns: repeat(3, 1fr) auto;
   gap: 8px;
 }
@@ -169,7 +170,7 @@ button:focus-visible {
   }
 
   .hud {
-    grid-template-columns: repeat(3, 1fr);
+     grid-template-columns: repeat(3, 1fr);
   }
 
   .sound-toggle {

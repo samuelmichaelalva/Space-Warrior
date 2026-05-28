@@ -90,7 +90,7 @@ function createAudioEngine() {
     if (options.slideTo) osc.frequency.exponentialRampToValueAtTime(options.slideTo, now + duration);
     envGain(gain, now, options.gain || 0.18, now + duration, duration);
     osc.connect(gain);
-    gain.connect(out);
+     gain.connect(out);
     osc.start(now);
     osc.stop(now + duration + 0.03);
   }
@@ -165,7 +165,7 @@ function createAudioEngine() {
       noise(isBoss ? 0.48 : 0.22, { gain: isBoss ? 0.34 : 0.22, freq: isBoss ? 180 : 420, filter: "lowpass" });
       tone(isBoss ? 92 : 180, isBoss ? 0.42 : 0.16, { type: "sawtooth", gain: isBoss ? 0.16 : 0.1, slideTo: 45 });
     },
-    bossAlert() {
+     bossAlert() {
       tone(196, 0.22, { type: "square", gain: 0.12, slideTo: 146.83 });
       window.setTimeout(() => tone(196, 0.22, { type: "square", gain: 0.12, slideTo: 146.83 }), 300);
       window.setTimeout(() => tone(293.66, 0.34, { type: "square", gain: 0.14, slideTo: 220 }), 620);
@@ -262,7 +262,7 @@ function updateHud() {
 }
 
 function spawnEnemy(forceBoss = false) {
-  if (forceBoss || (!bossActive && normalKills > 0 && normalKills % 15 === 0)) {
+ if (forceBoss || (!bossActive && normalKills > 0 && normalKills % 15 === 0)) {
     bossActive = true;
     bossIntroTimer = 1000;
     audio?.bossAlert();
@@ -397,7 +397,7 @@ function handleCollisions() {
   bullets.forEach((bullet) => {
     enemies.forEach((enemy) => {
       if (bullet.hit || !circleRect(bullet, enemy)) return;
-      bullet.hit = true;
+     bullet.hit = true;
       enemy.hp -= bullet.damage;
       burst(bullet.x, bullet.y, "#75f7ff", 5);
       audio?.hit();
@@ -426,7 +426,7 @@ function handleCollisions() {
 
   pickups.forEach((pickup) => {
     if (rectsOverlap(pickup, player)) {
-      pickup.collected = true;
+       pickup.collected = true;
       player.hp = Math.min(player.maxHp, player.hp + pickup.value);
       burst(pickup.x, pickup.y, "#62ff8a", 18);
       audio?.pickup();
